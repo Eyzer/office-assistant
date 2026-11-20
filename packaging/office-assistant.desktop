@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=office办公助手
+Name[en]=Office Assistant
+GenericName=文档表格批处理
+Comment=Document and spreadsheet batch processing
+Comment[zh_CN]=离线批量处理文档与表格，不改源文件
+Exec=office-assistant
+Icon=/opt/office-assistant/web/icon.png
+Terminal=false
+Categories=Office;Utility;
+Keywords=batch;excel;word;docx;xlsx;office;
+StartupNotify=true
