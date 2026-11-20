@@ -45,7 +45,6 @@
 命令行方式等价：
 
 ```bat
-cd DocBatchTool
 python main.py
 python main.py --port 8080     :: 指定端口
 python main.py --no-browser    :: 不自动开浏览器，终端会打印带令牌的地址
@@ -71,6 +70,8 @@ sh start.sh --host 0.0.0.0 --port 8765   # 供局域网访问
 `start.sh` 会自己找 `python3`，缺依赖时尝试 `apt`/`pip` 补齐。完整说明见 [DEPLOY-Linux.md](DEPLOY-Linux.md)。
 
 ## 安装（deb）
+
+> Release 里只提供压缩包。deb 需要在 arm64 环境自行构建（见下方「打包 deb」），构建产物为 `office-assistant_<版本>_arm64.deb`。
 
 ```bash
 sudo dpkg -i office-assistant_1.3.2_arm64.deb
