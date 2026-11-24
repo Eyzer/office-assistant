@@ -3,7 +3,7 @@
 APP_NAME = "office办公助手"
 APP_NAME_EN = "office-assistant"
 APP_TAGLINE = "文档与表格批量处理"
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 
 # 作者信息（要换人改这几行即可）
 AUTHOR = "Eyzer"

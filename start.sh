@@ -30,29 +30,47 @@ if [ -z "$PY" ]; then
     exit 1
 fi
 
-# ---------- 必需依赖 ----------
-need_install=0
-"$PY" -c 'import openpyxl' 2>/dev/null || need_install=1
-"$PY" -c 'import docx'     2>/dev/null || need_install=1
+# ---------- 内置依赖目录 ----------
+# vendor/ 是离线依赖包解出来的位置；只读目录安装时会退到用户目录，两处都挂上。
+VENDOR="$DIR/vendor"
+USER_VENDOR="$HOME/.local/share/office-assistant/vendor"
+export PYTHONPATH="$VENDOR${PYTHONPATH:+:$PYTHONPATH}"
+if [ -d "$USER_VENDOR" ]; then
+    export PYTHONPATH="$PYTHONPATH:$USER_VENDOR"
+fi
 
-if [ "$need_install" = "1" ]; then
-    echo "缺少 openpyxl 或 python-docx，尝试安装……"
+# ---------- 必需依赖 ----------
+# 顺序：先用随包带的离线 wheel（内网唯一可行），再试 apt，最后试 pip。
+deps_ok() { "$PY" -c 'import openpyxl, docx' >/dev/null 2>&1; }
+
+if ! deps_ok; then
+    if [ -f "$DIR/offline-deps/install-deps.py" ] && [ -d "$DIR/offline-deps/wheels" ]; then
+        echo "缺少依赖，使用内置离线包安装（不需要联网）……"
+        "$PY" "$DIR/offline-deps/install-deps.py" || true
+    fi
+fi
+
+if ! deps_ok; then
+    echo "离线包未覆盖本机环境，尝试系统源 / pip……"
     if command -v apt-get >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
         apt-get install -y python3-openpyxl python3-docx >/dev/null 2>&1 || true
     elif command -v apt-get >/dev/null 2>&1; then
         sudo apt-get install -y python3-openpyxl python3-docx >/dev/null 2>&1 || true
     fi
-    if ! "$PY" -c 'import openpyxl, docx' 2>/dev/null; then
+    if ! deps_ok; then
         "$PY" -m pip install -r requirements.txt 2>/dev/null || true
     fi
-    if ! "$PY" -c 'import openpyxl, docx' 2>/dev/null; then
-        echo "" >&2
-        echo "依赖仍然缺失，请手动安装其一：" >&2
-        echo "  sudo apt install python3-openpyxl python3-docx" >&2
-        echo "  $PY -m pip install -r requirements.txt" >&2
-        exit 1
-    fi
-    echo "依赖已就绪。"
+fi
+
+if ! deps_ok; then
+    echo "" >&2
+    echo "依赖仍然缺失。内网机器请按下面任一条处理：" >&2
+    echo "  1) 拷入对应架构与 Python 版本的离线包后执行：" >&2
+    echo "     $PY $DIR/offline-deps/install-deps.py" >&2
+    echo "  2) 有安装源时：sudo apt install python3-openpyxl python3-docx" >&2
+    echo "" >&2
+    echo "本机情况：$("$PY" -c 'import platform,sys;print(sys.version.split()[0], platform.machine())')" >&2
+    exit 1
 fi
 
 # ---------- sjz 解密能力提示 ----------

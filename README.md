@@ -16,7 +16,7 @@
 - **系统文件对话框**：能调 `zenity` / `kdialog` 就弹真正的系统选择框（拿到真实路径，不用上传副本）；调不到自动退回浏览器自带选择框
 - **拖拽即用**：文件或整个文件夹拖进窗口任意位置即可加入待处理列表
 - **日志抽屉**：底部可收起的抽屉 + 悬浮按钮，不再常驻占屏；收起时用角标提示新增条数
-- **依赖内嵌**：qrcode / Pillow / pypinyin / pypdf / python-barcode / lunardate 打进 deb，目标机离线可用
+- **依赖内嵌，内网可用**：第三方库按「Python 版本 + 架构」打成离线 wheel 包，`python3 offline-deps/install-deps.py` 解包即用，不联网、不调 pip；qrcode / Pillow / pypinyin / pypdf / python-barcode / lunardate 全在内
 - **sjz 加密文件自动解密**：上传时识别 sjz 加密的 docx/xlsx/PDF 并原地解密，后续功能直接可用；非加密文件零误判
 - **人员信息提取**：从一堆 docx 表格里抓姓名、身份证号等字段，汇总成一张带核验标记的 Excel 台账
 - 全部结果写入输出目录，源文件只读
@@ -57,24 +57,33 @@ python main.py --version       :: 看版本与作者
 
 ## 安装（压缩包，推荐）
 
-从 [Releases](https://github.com/Eyzer/office-assistant/releases) 下载 `office-assistant-linux-<版本>.tar.gz`：
+从 [Releases](https://github.com/Eyzer/office-assistant/releases) 下载对应版本：
+
+| 包 | 用途 |
+|---|---|
+| `office-assistant-intranet-aarch64-<版本>.tar.gz` | **内网 / 离线**，arm64（麒麟飞腾、鲲鹏）。含全部第三方依赖 |
+| `office-assistant-intranet-x86_64-<版本>.tar.gz` | **内网 / 离线**，x86_64（麒麟兆芯、海光、Intel/AMD） |
+| `office-assistant-linux-<版本>.tar.gz` | 只要程序，依赖自己装（有 apt 源或能联网时用） |
 
 ```bash
-tar xzf office-assistant-linux-1.3.2.tar.gz
+tar xzf office-assistant-intranet-aarch64-1.3.3.tar.gz
 cd office-assistant
-sh check.sh                      # 环境自检，应显示「结论：就绪」
-sh start.sh                      # 启动并自动打开浏览器
+python3 offline-deps/install-deps.py     # 离线装依赖，输出「结论：就绪」
+sh check.sh                              # 环境自检
+sh start.sh                              # 启动并自动打开浏览器
 sh start.sh --host 0.0.0.0 --port 8765   # 供局域网访问
 ```
 
-`start.sh` 会自己找 `python3`，缺依赖时尝试 `apt`/`pip` 补齐。完整说明见 [DEPLOY-Linux.md](DEPLOY-Linux.md)。
+内网包里的依赖覆盖 Python 3.7 / 3.8 / 3.9 / 3.10 / 3.11，装的时候按本机版本自动挑，不需要你选。`start.sh` 也会在发现缺依赖时自动跑这一步。
+
+万一打包的 Python 版本跟目标机对不上，`sh check.sh` 会直接告诉你需要哪一组、怎么生成。完整说明见 [DEPLOY-Linux.md](DEPLOY-Linux.md)。
 
 ## 安装（deb）
 
 > Release 里只提供压缩包。deb 需要在 arm64 环境自行构建（见下方「打包 deb」），构建产物为 `office-assistant_<版本>_arm64.deb`。
 
 ```bash
-sudo dpkg -i office-assistant_1.3.2_arm64.deb
+sudo dpkg -i office-assistant_1.3.3_arm64.deb
 sudo apt-get -f install          # 缺依赖时补齐
 office-assistant                # 启动，自动打开浏览器
 ```
@@ -181,11 +190,38 @@ bash packaging/build-deb.sh
 PYVER=3.7 bash packaging/build-deb.sh     # 指定目标机 Python 版本
 ```
 
-包名 `office-assistant_<版本>_arm64.deb`，版本号与 Maintainer 从 `version.py` 读。脚本会调用 `packaging/fetch-vendor.sh` 把 aarch64 轮的第三方库解包进 `vendor/`，装到目标机后无需联网。单独拉依赖：
+包名 `office-assistant_<版本>_arm64.deb`，版本号与 Maintainer 从 `version.py` 读。脚本会调用 `packaging/fetch-vendor.sh`，优先用 `offline-deps/wheels` 里现成的 wheel（没有时才联网下载），装到目标机后无需联网。
 
 ```bash
-PYVER=3.7 bash packaging/fetch-vendor.sh
+PYVER=3.7 ARCH=aarch64 bash packaging/fetch-vendor.sh
 ```
+
+## 离线依赖包
+
+目录约定：
+
+```
+offline-deps/
+  install-deps.py            离线安装器，只用标准库，按本机版本挑 wheel 解到 vendor/
+  build-wheels.py            在有网机器上生成 wheel
+  wheels/
+    common/                  纯 Python 包，任何架构与版本通用
+    py37-aarch64/            二进制包按「Python 版本-架构」分组
+    py38-aarch64/  py39-*/  py310-*/  py311-*/
+    py39-x86_64/  ...
+```
+
+二进制包（`lxml`、`Pillow`）必须与目标 ABI 和 CPU 架构严格一致，所以按组合分开；纯 Python 只存一份。全部 wheel 基于 manylinux2014（glibc 2.17 基线），麒麟 V10 的 glibc 2.28 完全兼容。
+
+重新生成某一组（有网机器）：
+
+```bash
+python3 offline-deps/build-wheels.py --arch aarch64 --py 3.9
+python3 offline-deps/build-wheels.py --arch x86_64 --py 3.7 3.9 3.11
+python3 offline-deps/build-wheels.py --clean          # 全部重下
+```
+
+换 Python 版本或换架构后记得同步 `build-wheels.py` 里的版本清单：3.7 用 python-docx 1.0.1（1.1.x 依赖的 typing-extensions 已不支持 3.7），3.12 用 lxml 5.x + Pillow 10.x。
 
 ## 目录
 
@@ -198,7 +234,8 @@ web/            前端页面（首页功能墙 + 工作区 + 日志抽屉）
 utils/          底层封装（batch.py 批处理公共骨架，deps.py 依赖回退）
 service/        任务调度与分类索引
 tools/          各功能，按 common/excel/word 分组
-vendor/         内置第三方依赖（打包时填充）
+vendor/         第三方依赖解包后的位置（离线安装器写入）
+offline-deps/   离线依赖：install-deps.py、build-wheels.py、wheels/
 uploads/        拖拽暂存（自动清理）
 profiles/       保存的方案
 samples/        样例与生成脚本
@@ -230,7 +267,7 @@ packaging/      deb 构建、依赖拉取、桌面图标与启动器
 
 简单工具直接用 `utils/batch.py` 的 `excel_edit()` 或 `process()`，行循环、进度、失败隔离都封装好了。
 
-需要第三方库时：`from utils import deps` 然后 `deps.load("qrcode")`，缺失会抛带中文提示的 `MissingDep`；打包前把库加进 `packaging/fetch-vendor.sh` 的 `PKGS`。
+需要第三方库时：`from utils import deps` 然后 `deps.load("qrcode")`，缺失会抛带中文提示的 `MissingDep`；加新依赖要同时写进 `requirements.txt` 和 `offline-deps/build-wheels.py` 的清单，再跑一次 `build-wheels.py`。
 
 测试：
 
@@ -249,7 +286,7 @@ python samples/make_samples.py                        # 重新生成样例
 - 邮箱：eyzer@qq.com
 - 主页：https://github.com/Eyzer
 - 许可：MIT
-- 当前版本：1.3.2（`python3 main.py --version` 可查）
+- 当前版本：1.3.3（`python3 main.py --version` 可查）
 
 界面右上角「关于」里能看到同一份信息与第三方组件清单。本程序只在 127.0.0.1 上开服务，不联网、不上传文件。
 

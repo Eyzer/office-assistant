@@ -8,10 +8,13 @@ import sys
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 
-# deb 安装时第三方库放在 vendor/，优先加载
-_vendor = os.path.join(BASE, "vendor")
-if os.path.isdir(_vendor):
-    sys.path.insert(0, _vendor)
+# 第三方库放在 vendor/（deb 安装包或离线依赖包解出来的），优先加载。
+# 装了只读目录时会退到用户目录，两处都挂上。
+for _vendor in (os.path.join(BASE, "vendor"),
+                os.path.join(os.path.expanduser("~"), ".local", "share",
+                             "office-assistant", "vendor")):
+    if os.path.isdir(_vendor) and _vendor not in sys.path:
+        sys.path.insert(0, _vendor)
 
 import version as app_info  # noqa: E402
 from utils import config_utils  # noqa: E402
